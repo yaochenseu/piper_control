@@ -97,12 +97,19 @@ armpro  j x x -30 x x x   # MoveIt 规划，可避障
 
 ## 手眼标定（可选）
 
+依赖 `ros-humble-realsense2-camera` 和 `python3-opencv`。流程：驱动 → RealSense → `aruco_detect` → `calib`，完整步骤见 `tools/手眼标定说明.md`，当前结果见 `tools/手眼标定结果.md`。
+
 ```bash
-aruco_detect   # RealSense + ArUco 检测
-calib          # 采集并计算手眼矩阵
+sudo apt install -y ros-humble-realsense2-camera python3-opencv
+ros2 launch realsense2_camera rs_launch.py \
+  rgb_camera.color_profile:=1280x720x30 enable_depth:=false
+aruco_detect --board charuco --dictionary DICT_4X4_50 \
+  --squares-x 7 --squares-y 5 \
+  --square-length 0.03 --marker-length 0.022 --blur 3
+calib
 ```
 
-需要额外安装 `pyrealsense2`、OpenCV，以及上游的 `aruco_ros`、`handeye_calibration_ros`。
+标定板文件在 `tools/calib_board/`（ChArUco 7×5，方格 30 mm，码 22 mm）。标定不依赖 `aruco_ros` / `handeye_calibration_ros`。
 
 ## 说明
 
