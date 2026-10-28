@@ -2,7 +2,7 @@
 # 一键启动 Piper X：检查 CAN -> 启动驱动 -> 使能 -> 打开控制门 -> 打印状态。
 #
 # 用法：
-#   arm_on                 # 默认 can0，5% 速度
+#   arm_on                 # 默认 can0，20% 速度
 #   arm_on can1            # 指定 CAN 接口
 #   SPEED_PERCENT=10 arm_on
 #
@@ -14,9 +14,10 @@ export ROS_DOMAIN_ID="${ROS_DOMAIN_ID:-42}"
 CAN_PORT="${1:-${CAN_PORT:-can0}}"
 ARM_TYPE="${ARM_TYPE:-piper_x}"
 EFFECTOR_TYPE="${EFFECTOR_TYPE:-agx_gripper}"
-SPEED_PERCENT="${SPEED_PERCENT:-5}"
+SPEED_PERCENT="${SPEED_PERCENT:-20}"
 
 DRIVER_PID=""
+DRIVER_CHILD=""
 LOG_FILE=""
 
 info() { printf '%s\n' "$*"; }
@@ -31,21 +32,36 @@ fail() {
 }
 
 cleanup() {
-    trap - INT TERM EXIT
-    if [[ -n "$DRIVER_PID" ]] && kill -0 "$DRIVER_PID" 2>/dev/null; then
+    trap - INT TERM HUP EXIT
+    if [[ -n "$DRIVER_PID" ]]; then
         info "停止驱动..."
+        # ros2 launch 的驱动子进程可能先被 reparent；先抓一次子进程 PID。
+        if [[ -z "$DRIVER_CHILD" ]]; then
+            DRIVER_CHILD=$(pgrep -P "$DRIVER_PID" -f 'agx_arm_ctrl_single' 2>/dev/null | head -n 1 || true)
+        fi
+        if [[ -n "$DRIVER_CHILD" ]] && kill -0 "$DRIVER_CHILD" 2>/dev/null; then
+            kill -INT "$DRIVER_CHILD" 2>/dev/null || true
+        fi
         kill -INT "$DRIVER_PID" 2>/dev/null || true
         for _ in {1..25}; do
             kill -0 "$DRIVER_PID" 2>/dev/null || break
             sleep 0.2
         done
+        # 驱动对 SIGINT/SIGTERM 可能不响应，兜底强制结束。
+        if [[ -n "$DRIVER_CHILD" ]] && kill -0 "$DRIVER_CHILD" 2>/dev/null; then
+            kill -TERM "$DRIVER_CHILD" 2>/dev/null || true
+            sleep 0.5
+            kill -KILL "$DRIVER_CHILD" 2>/dev/null || true
+        fi
         kill -TERM "$DRIVER_PID" 2>/dev/null || true
+        kill -KILL "$DRIVER_PID" 2>/dev/null || true
         wait "$DRIVER_PID" 2>/dev/null || true
     fi
 }
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+trap 'exit 129' HUP
 
 source /opt/ros/humble/setup.bash || fail "无法加载 ROS 2 Humble 环境"
 source "$HOME/agx_arm_ws/install/setup.bash" || fail "无法加载 ~/agx_arm_ws/install/setup.bash"
@@ -77,6 +93,7 @@ info "✅ CAN $CAN_PORT UP，1 Mbit/s"
 LOG_DIR="$HOME/agx_arm_ws/log"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/arm_on_$(date +%Y%m%d_%H%M%S).log"
+info "驱动配置：CAN=$CAN_PORT  型号=$ARM_TYPE  末端=$EFFECTOR_TYPE  速度=${SPEED_PERCENT}%"
 info "启动驱动（日志：$LOG_FILE）..."
 
 ros2 launch agx_arm_ctrl start_single_agx_arm.launch.py \
@@ -88,6 +105,13 @@ ros2 launch agx_arm_ctrl start_single_agx_arm.launch.py \
     control_enabled:=false \
     >"$LOG_FILE" 2>&1 &
 DRIVER_PID=$!
+
+# 记录 ros2 launch 派生的驱动节点 PID，退出时即使 launch 已消失也能清理。
+for _ in {1..50}; do
+    DRIVER_CHILD=$(pgrep -P "$DRIVER_PID" -f 'agx_arm_ctrl_single' 2>/dev/null | head -n 1 || true)
+    [[ -n "$DRIVER_CHILD" ]] && break
+    sleep 0.1
+done
 
 wait_for_service() {
     local service="$1" timeout="${2:-20}" start

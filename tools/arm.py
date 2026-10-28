@@ -574,7 +574,9 @@ def run_joint(args, node: Arm):
         print("\n仅预演，未发送指令。去掉 -n 即直接执行。")
         return
 
-    node.ensure_control_gate_open()
+    if not node.ensure_control_gate_open():
+        print("❌ 控制门未打开，已中止")
+        sys.exit(2)
     node.publish_joint(target_deg, gripper_width, args.force)
     node.monitor_joint(target_deg, args.wait)
     if gripper_width is not None:
@@ -666,7 +668,9 @@ def run_pose(args, node: Arm):
         print("\n仅预演，未发送指令。去掉 -n 即直接执行。")
         return
 
-    node.ensure_control_gate_open()
+    if not node.ensure_control_gate_open():
+        print("❌ 控制门未打开，已中止")
+        sys.exit(2)
     node.publish_pose(position, rpy_deg, args.linear, gripper_ratio, args.force)
     node.monitor_pose(position, rpy_deg, args.wait)
 
