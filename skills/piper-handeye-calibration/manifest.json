@@ -1,0 +1,37 @@
+{
+  "name": "piper-handeye-calibration",
+  "version": "1.0.0",
+  "description": "Automatic eye-in-hand hand-eye calibration for AgileX Piper X with RealSense and ChArUco.",
+  "entrypoints": {
+    "preflight": "scripts/preflight.sh",
+    "calibrate": "scripts/run_calibration.sh",
+    "driver": "scripts/start_driver.sh",
+    "camera": "scripts/start_camera.sh",
+    "detector": "scripts/start_detector.sh"
+  },
+  "config": "config/default.json",
+  "requires": [
+    "ROS 2 Humble",
+    "agx_arm_ws built with agx_arm_ctrl, agx_arm_msgs, pyAgxArm",
+    "realsense2_camera",
+    "python3-opencv",
+    "python3-scipy",
+    "python3-numpy",
+    "CAN interface at 1 Mbit/s"
+  ],
+  "outputs": [
+    "tools/calib_results/<timestamp>_handeye.json"
+  ],
+  "safety": [
+    "ctrl_mode must be 1 (CAN control), never teach mode",
+    "never call /exit_teach_mode; it homes the arm to zero",
+    "do not run MoveIt during calibration",
+    "keep the board fixed and the workspace clear",
+    "default speed 5 percent"
+  ],
+  "assumptions": [
+    "eye-in-hand camera rigidly mounted on the flange",
+    "driver tcp_offset=0, so TCP is the flange",
+    "ChArUco 7x5, 30 mm squares, 22 mm markers, DICT_4X4_50"
+  ]
+}

@@ -111,6 +111,10 @@ calib
 
 标定板文件在 `tools/calib_board/`（ChArUco 7×5，方格 30 mm，码 22 mm）。标定不依赖 `aruco_ros` / `handeye_calibration_ros`。
 
+## Agent Skill
+
+`skills/piper-handeye-calibration/` 是可移植的自动手眼标定 skill：`SKILL.md` 描述完整流程和安全约束，`scripts/` 包含自动采点/求解、驱动/相机/检测启动和预检脚本。其他平台的 AI 只要会读文件和执行 shell，就可以按 `SKILL.md` 操作；Claude Code 也可以把该目录链接到 `.claude/skills/` 使用。
+
 ## 说明
 
 - 本仓库的 `agx_arm_ros` 来自 [AgileX 官方仓库](https://github.com/agilexrobotics/agx_arm_ros)，包含以下本地修改：驱动默认速度 15%、控制门覆盖夹爪/灵巧手 Action、RViz 当前状态改用 TF 驱动显示。
